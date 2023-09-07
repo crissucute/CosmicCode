@@ -1,0 +1,53 @@
+---
+- name: Install Apache on Linux and IIS on Windows
+  hosts: all
+  become: true
+  tasks:
+    - name: Install Apache on Linux
+      yum:
+        name: httpd
+        state: present
+      when: "'linux' in group_names"
+
+    - name: Install IIS on Windows
+      win_feature:
+        name: Web-Server
+        state: present
+      when: "'win' in group_names"
+
+    - name: Configure Apache to listen on port 8080
+      lineinfile:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: '^Listen '
+        line: 'Listen 8080'
+      when: "'linux' in group_names"
+
+    - name: Create test website on IIS
+      win_webpi:
+        apps:
+          - { id: 'WDeploy', version: '3.6' }
+        state: present
+      when: "'win' in group_names"
+
+    - name: Create test.txt file on Ansible server
+      file:
+        path: /root/test.txt
+        state: touch
+
+    - name: Copy test.txt to Linux server
+      copy:
+        src: /root/test.txt
+        dest: /var/www/html/test.txt
+      when: "'linux' in group_names"
+
+    - name: Copy test.txt to Windows server
+      win_copy:
+        src: /root/test.txt
+        dest: C:\inetpub\wwwroot\test.txt
+      when: "'win' in group_names"
+
+    - name: Recycle app pool of test website
+      win_shell: |
+        Import-Module WebAdministration
+        Restart-WebAppPool -Name "DefaultAppPool"
+      when: "'win' in group_names"
